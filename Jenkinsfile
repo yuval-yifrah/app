@@ -29,7 +29,9 @@ pipeline {
                     sh '''
                         apt-get update
                         apt-get install -y python3 python3-venv python3-pip
-                        ln -s /usr/bin/python3 /usr/bin/python
+                        if [ ! -f /usr/bin/python ]; then
+                            ln -s /usr/bin/python3 /usr/bin/python
+                        fi
                         python -m venv .venv
                         . .venv/bin/activate
                         pip install -r requirements.txt
@@ -79,7 +81,7 @@ pipeline {
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy to Production') {
             steps {
                 sh '''
                     docker run -d -p 5000:5000 --name calculator $ECR_REPO:$IMAGE_TAG
