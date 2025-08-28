@@ -23,13 +23,26 @@ pipeline {
             }
         }
 
+        stage('Install Python') {
+            steps {
+                dir('app') {
+                    sh '''
+                        apt-get update
+                        apt-get install -y python3 python3-venv python3-pip
+                        ln -s /usr/bin/python3 /usr/bin/python
+                        python -m venv .venv
+                        . .venv/bin/activate
+                        pip install -r requirements.txt
+                    '''
+                }
+            }
+        }
+
         stage('Run Unit/Integration Tests') {
             steps {
                 dir('app') {
                     sh '''
-                        python -m venv .venv
                         . .venv/bin/activate
-                        pip install -r requirements.txt
                         python -m unittest discover -s tests -v > results.xml || echo "No tests found"
                     '''
                 }
