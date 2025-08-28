@@ -5,19 +5,27 @@ pipeline {
         AWS_REGION = 'us-east-1'
         ECR_REPO = '992382545251.dkr.ecr.us-east-1.amazonaws.com/yuvaly-cicd'
         IMAGE_TAG = "latest"
-        DOCKERFILE_REPO = '/var/jenkins_home/dockerfiles-repo' // <-- נתיב לרפו/תיקיית Dockerfile
     }
 
     stages {
         stage('Checkout App Repo') {
             steps {
-                checkout scm
+                git url: 'https://github.com/yuval-yifrah/app.git', branch: 'yuval'
             }
         }
 
-        stage('Checkout Dockerfile Repo') {
+        stage('Checkout Platform Repo (Dockerfile)') {
             steps {
-                git url: 'https://github.com/yuval-yifrah/dockerfiles-repo.git', branch: 'main', changelog: false
+                git url: 'https://github.com/yuval-yifrah/platform.git', branch: 'main'
+            }
+        }
+
+        stage('Prepare Docker Context') {
+            steps {
+                sh '''
+                    # מעתיקים את קוד האפליקציה לתיקיית Dockerfile
+                    cp -r ../app/* .
+                '''
             }
         }
 
@@ -32,9 +40,9 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh """
-                    docker build -t $ECR_REPO:$IMAGE_TAG $DOCKERFILE_REPO
-                """
+                sh '''
+                    docker build -t $ECR_REPO:$IMAGE_TAG .
+                '''
             }
         }
 
