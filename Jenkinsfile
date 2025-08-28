@@ -82,6 +82,11 @@ pipeline {
         stage('Deploy to Production') {
             steps {
                 sh '''
+                    # עצירת container קיים ומחיקה
+                    docker stop calculator || true
+                    docker rm calculator || true
+
+                    # הרצת container חדש
                     docker run -d -p 5000:5000 --name calculator $ECR_REPO:$IMAGE_TAG
                 '''
             }
@@ -90,7 +95,17 @@ pipeline {
         stage('Health Check') {
             steps {
                 sh '''
-                    curl -fsS http://localhost:5000/health
+                    # בדיקה עם retries עד 10 פעמים
+                    for i in $(seq 1 10); do
+                        echo "Health check attempt $i"
+                        if curl -fsS http://localhost:5000/health; then
+                            echo "Health check passed!"
+                            exit 0
+                        fi
+                        sleep 5
+                    done
+                    echo "Health check failed after 10 attempts"
+                    exit 1
                 '''
             }
         }
