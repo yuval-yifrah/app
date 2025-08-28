@@ -84,7 +84,6 @@ pipeline {
         stage('Deploy to Production') {
             steps {
                 sh '''
-                    docker rm -f calculator || true
                     docker run -d -p 5000:5000 --name calculator $ECR_REPO:$IMAGE_TAG
                 '''
             }
@@ -92,9 +91,28 @@ pipeline {
 
         stage('Health Check') {
             steps {
-                sh '''
-                    curl -fsS http://localhost:5000/health
-                '''
+                script {
+                    // מנסה עד 30 שניות לבדוק שה־Flask container מוכן
+                    def retries = 6
+                    def wait = 5
+                    def success = false
+
+                    for (int i = 0; i < retries; i++) {
+                        def status = sh(script: 'curl -fsS http://localhost:5000/health || echo "fail"', returnStdout: true).trim()
+                        if (status != "fail") {
+                            echo "Health check passed!"
+                            success = true
+                            break
+                        } else {
+                            echo "Health check failed, retrying in ${wait}s..."
+                            sleep(wait)
+                        }
+                    }
+
+                    if (!success) {
+                        error "Health check failed after ${retries*wait} seconds"
+                    }
+                }
             }
         }
     }
