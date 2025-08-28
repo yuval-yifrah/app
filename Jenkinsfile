@@ -29,7 +29,7 @@ pipeline {
                     sh '''
                         apt-get update
                         apt-get install -y python3 python3-venv python3-pip
-                        ln -sf /usr/bin/python3 /usr/bin/python  # force symlink to avoid error
+                        ln -s /usr/bin/python3 /usr/bin/python
                         python -m venv .venv
                         . .venv/bin/activate
                         pip install -r requirements.txt
@@ -79,14 +79,9 @@ pipeline {
             }
         }
 
-        stage('Deploy to Production') {
+        stage('Deploy') {
             steps {
                 sh '''
-                    # Stop previous container if exists
-                    docker stop calculator || true
-                    docker rm calculator || true
-
-                    # Run new container
                     docker run -d -p 5000:5000 --name calculator $ECR_REPO:$IMAGE_TAG
                 '''
             }
