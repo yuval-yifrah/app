@@ -83,23 +83,43 @@ pipeline {
 
         stage('Deploy to Production') {
             steps {
+                sh '''
+                    docker rm -f calculator || true
+                    docker run -d -p 5000:5000 --name calculator $ECR_REPO:$IMAGE_TAG
+                '''
+            }
+        }
+
+        stage('Check Container Logs') {
+            steps {
+                sh '''
+                    echo "=== Calculator logs ==="
+                    docker logs calculator || true
+                '''
+            }
+        }
+
+        stage('Health Check') {
+            steps {
                 script {
-                    def containerName = "calculator"
-                    def image = "${ECR_REPO}:${IMAGE_TAG}"
+                    def retries = 6
+                    def wait = 5
+                    def success = false
 
-                    // מחיקת קונטיינר ישן אם קיים
-                    sh "docker rm -f ${containerName} || true"
-
-                    // הרצת קונטיינר חדש עם network host
-                    sh "docker run -d --name ${containerName} --network host ${image}"
-
-                    // בדיקת בריאות עם retry
-                    retry(5) {
-                        sleep 6
+                    for (int i = 0; i < retries; i++) {
                         def status = sh(script: 'curl -fsS http://localhost:5000/health || echo "fail"', returnStdout: true).trim()
-                        if (status == "fail") {
-                            error "Health check failed"
+                        if (status != "fail") {
+                            echo "Health check passed!"
+                            success = true
+                            break
+                        } else {
+                            echo "Health check failed, retrying in ${wait}s..."
+                            sleep(wait)
                         }
+                    }
+
+                    if (!success) {
+                        error "Health check failed after ${retries*wait} seconds"
                     }
                 }
             }
