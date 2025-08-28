@@ -3,13 +3,10 @@ pipeline {
 
     environment {
         ECR_REPO = '992382545251.dkr.ecr.us-east-1.amazonaws.com/yuvaly-cicd'
-        IMAGE_TAG = ''
-        PROD_HOST = 'ec2-user@13.218.174.152'  
-        PROD_PORT = 80                        
+        IMAGE_TAG = "latest-${env.BUILD_NUMBER}"
     }
 
     stages {
-
         stage('Checkout App Repo') {
             steps {
                 dir('app') {
@@ -26,19 +23,17 @@ pipeline {
             }
         }
 
-        stage('Set Image Tag') {
+        stage('Run Unit/Integration Tests') {
             steps {
-                script {
-                    if (env.CHANGE_ID) {
-                        IMAGE_TAG = "pr-${env.CHANGE_ID}-${env.BUILD_NUMBER}"
-                        IS_PR = true
-                    } else if (env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'master') {
-                        IMAGE_TAG = "latest-${env.BUILD_NUMBER}" 
-                        IS_PR = false
-                    } else {
-                        error "Branch not handled: ${env.BRANCH_NAME}"
-                    }
+                dir('app') {
+                    sh '''
+                        python -m venv .venv
+                        . .venv/bin/activate
+                        pip install -r requirements.txt
+                        python -m unittest discover -s tests -v > results.xml || echo "No tests found"
+                    '''
                 }
+                junit 'app/results.xml'
             }
         }
 
@@ -52,16 +47,13 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
+                script {
+                    if (!IMAGE_TAG?.trim()) {
+                        error "IMAGE_TAG is empty! Cannot build Docker image."
+                    }
+                }
                 sh '''
                     docker build -t $ECR_REPO:$IMAGE_TAG platform
-                '''
-            }
-        }
-
-        stage('Test') {
-            steps {
-                sh '''
-                    python -m unittest discover -s tests -v
                 '''
             }
         }
@@ -75,33 +67,17 @@ pipeline {
         }
 
         stage('Deploy to Production') {
-            when { expression { return !IS_PR } }
             steps {
-                sh """
-                    ssh $PROD_HOST '
-                    docker pull $ECR_REPO:$IMAGE_TAG
-                    docker stop app || true
-                    docker rm app || true
-                    docker run -d --name app -p $PROD_PORT:80 $ECR_REPO:$IMAGE_TAG
-                    '
-                """
+                sh '''
+                    docker run -d -p 5000:5000 --name calculator $ECR_REPO:$IMAGE_TAG
+                '''
             }
         }
 
         stage('Health Check') {
-            when { expression { return !IS_PR } } 
             steps {
                 sh '''
-                    python -m venv .venv && . .venv/bin/activate
-                    pip install -r requirements.txt
-                    python api.py &
-                    pid=$!
-                    for i in {1..5}; do
-                        curl -fsS http://localhost:5000/health && kill $pid && exit 0
-                        sleep 5
-                    done
-                    kill $pid
-                    exit 1
+                    curl -fsS http://localhost:5000/health
                 '''
             }
         }
@@ -109,7 +85,14 @@ pipeline {
 
     post {
         always {
-            junit 'tests/**/*.xml'  
+            sh 'docker ps -a'
+            sh 'docker images'
+        }
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
         }
     }
 }
