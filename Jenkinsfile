@@ -10,29 +10,19 @@ pipeline {
     stages {
         stage('Checkout App Repo') {
             steps {
-                git url: 'https://github.com/yuval-yifrah/app.git', branch: 'yuval'
+                checkout scm
             }
         }
 
-        stage('Checkout Platform Repo (Dockerfile)') {
+        stage('Checkout Dockerfile Repo') {
             steps {
-                git url: 'https://github.com/yuval-yifrah/platform.git', branch: 'main'
-            }
-        }
-
-        stage('Prepare Docker Context') {
-            steps {
-                sh '''
-                    # מעתיקים את קוד האפליקציה לתיקיית Dockerfile
-                    cp -r ../app/* .
-                '''
+                git url: 'https://github.com/yuval-yifrah/dockerfiles-repo.git', branch: 'main', changelog: false
             }
         }
 
         stage('Login to ECR') {
             steps {
                 sh '''
-                    aws --version
                     aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO
                 '''
             }
@@ -41,6 +31,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
+                    # copy app files into Docker context (current folder)
+                    cp -r ../app/* .
                     docker build -t $ECR_REPO:$IMAGE_TAG .
                 '''
             }
@@ -48,9 +40,7 @@ pipeline {
 
         stage('Push to ECR') {
             steps {
-                sh '''
-                    docker push $ECR_REPO:$IMAGE_TAG
-                '''
+                sh 'docker push $ECR_REPO:$IMAGE_TAG'
             }
         }
     }
