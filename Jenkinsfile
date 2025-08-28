@@ -107,7 +107,7 @@ pipeline {
                     def success = false
 
                     for (int i = 0; i < retries; i++) {
-                        def status = sh(script: 'curl -fsS http://localhost:5000/health || echo "fail"', returnStdout: true).trim()
+                        def status = sh(script: "docker exec calculator curl -fsS http://localhost:5000/health || echo 'fail'", returnStdout: true).trim()
                         if (status != "fail") {
                             echo "Health check passed!"
                             success = true
