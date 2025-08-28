@@ -84,6 +84,7 @@ pipeline {
         stage('Deploy to Production') {
             steps {
                 sh '''
+                    docker rm -f calculator || true
                     docker run -d -p 5000:5000 --name calculator $ECR_REPO:$IMAGE_TAG
                 '''
             }
