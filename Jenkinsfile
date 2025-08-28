@@ -102,16 +102,13 @@ pipeline {
         stage('Health Check') {
             steps {
                 script {
-                    def retries = 10
-                    def wait = 3
+                    def retries = 6
+                    def wait = 5
                     def success = false
 
                     for (int i = 0; i < retries; i++) {
-                        def status = sh(
-                            script: "docker exec calculator curl -fsS http://127.0.0.1:5000/health || echo 'fail'",
-                            returnStdout: true
-                        ).trim()
-
+                        // לבדיקה מתוך ה־Jenkins container מול localhost:5000
+                        def status = sh(script: 'curl -fsS http://localhost:5000/health || echo "fail"', returnStdout: true).trim()
                         if (status != "fail") {
                             echo "Health check passed!"
                             success = true
